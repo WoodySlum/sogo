@@ -28,3 +28,8 @@ UI/WebServerResources/scss/.sass-cache/
 config.make
 doc
 tags
+node_modules
+.DS_Store
+.configure-test-*
+.vscode
+package-lock.json

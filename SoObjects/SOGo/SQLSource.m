@@ -257,6 +257,26 @@
   channel = [cm acquireOpenChannelForURL: _viewURL];
   if (channel)
     {
+      sql = [NSMutableString stringWithFormat: @"SHOW COLUMNS"
+                             @" FROM %@"
+                             @" LIKE 'c_reset'",
+                             [_viewURL gcsTableName]];
+      ex = [channel evaluateExpressionX: sql];
+      BOOL hasResetField = NO;
+      if (!ex)
+        {
+          NSDictionary *row;
+          NSArray *attrs;
+          NSString *value;
+
+          attrs = [channel describeResults: NO];
+          row = [channel fetchAttributes: attrs  withZone: NULL];
+          if (row) {
+            hasResetField = YES;
+          }
+        }
+        [channel cancelFetch];
+
       if (_loginFields)
         {
           NSMutableArray *qualifiers;
@@ -283,10 +303,13 @@
                                                          value: _login];
         }
       [qualifier autorelease];
-      sql = [NSMutableString stringWithFormat: @"SELECT c_password"
+
+      sql = [NSMutableString stringWithFormat: @"SELECT c_password%@"
                              @" FROM %@"
                              @" WHERE ",
+                             hasResetField ? @", c_reset" : @"",
                              [_viewURL gcsTableName]];
+
       if (_authenticationFilter)
         {
           qualifier = [[EOAndQualifier alloc] initWithQualifiers:
@@ -307,6 +330,16 @@
           attrs = [channel describeResults: NO];
           row = [channel fetchAttributes: attrs  withZone: NULL];
           value = [row objectForKey: @"c_password"];
+
+          if (hasResetField) {
+            NSNumber *reset;
+            reset = [row objectForKey: @"c_reset"];
+
+            if ([reset intValue] == 1)
+            {
+              *_perr = PolicyPasswordExpired;
+            }
+          }
 
           rc = [self _isPassword: _pwd  equalTo: value];
           [channel cancelFetch];
@@ -363,7 +396,7 @@
       if (channel)
         {
           sqlstr = [NSString stringWithFormat: (@"UPDATE %@"
-                                                @" SET c_password = '%@'"
+                                                @" SET c_password = '%@', c_reset = 0" 
                                                 @" WHERE c_uid = '%@'"),
                              [_viewURL gcsTableName], encryptedPassword, login];
 
